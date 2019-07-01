@@ -1,30 +1,16 @@
-import argparse
-from collections import defaultdict, Counter
-import random
-
 import pandas as pd
-import tqdm
+import argparse
+from sklearn.model_selection import StratifiedKFold
 
 from .dataset import DATA_ROOT
 
 
 def make_folds(n_folds: int, seed: int) -> pd.DataFrame:
     df = pd.read_csv(DATA_ROOT / 'train.csv')
-    cls_counts = Counter(df['diagnosis'])
-    fold_cls_counts = defaultdict(int)
-    folds = [-1] * len(df)
-    for item in tqdm.tqdm(df.sample(frac=1, random_state=seed).itertuples(),
-                          total=len(df)):
-        cls = min(item.attribute_ids.split(), key=lambda cls: cls_counts[cls])
-        fold_counts = [(f, fold_cls_counts[f, cls]) for f in range(n_folds)]
-        min_count = min([count for _, count in fold_counts])
-        random.seed(item.Index)
-        fold = random.choice([f for f, count in fold_counts
-                              if count == min_count])
-        folds[item.Index] = fold
-        for cls in item.attribute_ids.split():
-            fold_cls_counts[fold, cls] += 1
-    df['fold'] = folds
+    df['fold'] = 0
+    skf = StratifiedKFold(n_splits=n_folds, random_state=seed, shuffle=True)
+    for n, (train_index, val_index) in enumerate(skf.split(df, df['diagnosis'])):
+        df.loc[val_index, 'fold'] = int(n)
     return df
 
 

@@ -28,7 +28,8 @@ from .utils import (
 
 
 def quadratic_weighted_kappa(y_hat, y):
-    return torch.tensor(cohen_kappa_score(torch.argmax(y_hat, 1), y, weights='quadratic'), device='cuda:0')
+    # return torch.tensor(cohen_kappa_score(torch.argmax(y_hat, 1), y, weights='quadratic'), device='cuda:0')
+    return cohen_kappa_score(y_hat, y, weights='quadratic')
 
 
 class OptimizedRounder(object):
@@ -93,7 +94,6 @@ def main():
     arg('--n-epochs', type=int, default=100)
     arg('--epoch-size', type=int)
     arg('--tta', type=int, default=4)
-    arg('--use-sample', action='store_true', help='use a sample of the dataset')
     arg('--debug', action='store_true')
     arg('--limit', type=int)
     arg('--fold', type=int, default=0)
@@ -101,11 +101,9 @@ def main():
 
     run_root = Path(args.run_root)
     folds = pd.read_csv('folds.csv')
-    train_root = DATA_ROOT / ('train_sample' if args.use_sample else 'train')
-    if args.use_sample:
-        folds = folds[folds['Id'].isin(set(get_ids(train_root)))]
-    train_fold = folds[folds['fold'] != args.fold]
-    valid_fold = folds[folds['fold'] == args.fold]
+    train_root = DATA_ROOT / 'train_images'
+    train_fold = folds[folds['fold'] != args.fold].reset_index(drop=True)
+    valid_fold = folds[folds['fold'] == args.fold].reset_index(drop=True)
     if args.limit:
         train_fold = train_fold[:args.limit]
         valid_fold = valid_fold[:args.limit]
@@ -179,20 +177,18 @@ def train(args, model: nn.Module, criterion, *, params,
         epoch = state['epoch']
         step = state['step']
         best_valid_loss = state['best_valid_loss']
-        best_valid_qwk = state['best_valid_qwk']
     else:
         epoch = 1
         step = 0
         best_valid_loss = float('inf')
-        best_valid_qwk = 0
+    best_valid_qwk = 0
     lr_changes = 0
 
     save = lambda ep: torch.save({
         'model': model.state_dict(),
         'epoch': ep,
         'step': step,
-        'best_valid_loss': best_valid_loss,
-        'best_valid_QWK': best_valid_qwk
+        'best_valid_loss': best_valid_loss
     }, str(model_path))
 
     report_each = 10000
@@ -212,11 +208,15 @@ def train(args, model: nn.Module, criterion, *, params,
             mean_loss = 0
             for i, (inputs, targets) in enumerate(tl):
                 if use_cuda:
-                    inputs, targets = inputs.cuda(), targets.cuda()
+                    device = "cuda:0"
+                    inputs = inputs.to(device, dtype=torch.float)
+                    targets = targets.view(-1, 1).to(device, dtype=torch.float)
                 outputs = model(inputs)
-                loss = _reduce_loss(criterion(outputs, targets))
+                # loss = _reduce_loss(criterion(outputs, targets))
                 batch_size = inputs.size(0)
-                (batch_size * loss).backward()
+                # (batch_size * loss).backward()
+                loss = criterion(outputs, targets)
+                loss.backward()
                 if (i + 1) % args.step == 0:
                     optimizer.step()
                     optimizer.zero_grad()
@@ -234,14 +234,16 @@ def train(args, model: nn.Module, criterion, *, params,
             write_event(log, step, **valid_metrics)
             valid_loss = valid_metrics['valid_loss']
             valid_qwk = valid_metrics['valid_qwk']
+            print(f'Epoch {epoch}, train_loss {mean_loss}, valid_loss {valid_loss}, valid_qwk {valid_qwk}')
             valid_losses.append(valid_loss)
             if valid_loss < best_valid_loss:
                 best_valid_loss = valid_loss
-                # shutil.copy(str(model_path), str(best_model_path))
-            if best_valid_qwk < valid_qwk:
-                best_valid_qwk = valid_qwk
                 shutil.copy(str(model_path), str(best_model_path))
-                print(f'Saved best model at Epoch {epoch}, best_valid_qwk {best_valid_qwk}')
+                print(f'Saved best model at Epoch {epoch}, best_valid_loss {best_valid_loss}')
+            # if best_valid_qwk < valid_qwk:
+                # best_valid_qwk = valid_qwk
+                # shutil.copy(str(model_path), str(best_model_path))
+                # print(f'Saved best model at Epoch {epoch}, best_valid_qwk {best_valid_qwk}')
             elif (patience and epoch - lr_reset_epoch > patience and
                   min(valid_losses[-patience:]) > best_valid_loss):
                 # "patience" epochs without improvement
@@ -270,10 +272,12 @@ def validation(
         for inputs, targets in valid_loader:
             all_targets.append(targets.numpy().copy())
             if use_cuda:
-                inputs, targets = inputs.cuda(), targets.cuda()
+                device = "cuda:0"
+                inputs = inputs.to(device, dtype=torch.float)
+                targets = targets.view(-1, 1).to(device, dtype=torch.float)
             outputs = model(inputs)
             loss = criterion(outputs, targets)
-            all_losses.append(_reduce_loss(loss).item())
+            all_losses.append(loss.item())
             predictions = torch.sigmoid(outputs)
             all_predictions.append(predictions.cpu().numpy())
     all_predictions = np.concatenate(all_predictions)
@@ -294,10 +298,6 @@ def validation(
     metrics['valid_qwk'] = get_score(y_pred)
 
     return metrics
-
-
-def _reduce_loss(loss):
-    return loss.sum() / loss.shape[0]
 
 
 if __name__ == '__main__':

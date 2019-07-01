@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Callable, List
 
@@ -48,7 +49,7 @@ class TTADataset:
     def __getitem__(self, idx):
         item = self._df.iloc[idx % len(self._df)]
         image = load_transform_image(item, self._root, self._image_transform)
-        return image, item.id
+        return image, item.diagnosis
 
 
 def load_transform_image(
@@ -61,7 +62,7 @@ def load_transform_image(
 
 
 def load_image(item, root: Path) -> Image.Image:
-    image = cv2.imread(str(root / f'{item.id}.png'))
+    image = cv2.imread(str(root / f'{item.id_code}.png'))
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     return Image.fromarray(image)
 
