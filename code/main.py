@@ -108,10 +108,18 @@ def main():
         train_fold = train_fold[:args.limit]
         valid_fold = valid_fold[:args.limit]
 
-    def make_loader(df: pd.DataFrame, image_transform) -> DataLoader:
+    def make_train_loader(df: pd.DataFrame, image_transform) -> DataLoader:
         return DataLoader(
             TrainDataset(train_root, df, image_transform, debug=args.debug),
             shuffle=True,
+            batch_size=args.batch_size,
+            num_workers=args.workers,
+        )
+
+    def make_valid_loader(df: pd.DataFrame, image_transform) -> DataLoader:
+        return DataLoader(
+            TrainDataset(train_root, df, image_transform, debug=args.debug),
+            shuffle=False,
             batch_size=args.batch_size,
             num_workers=args.workers,
         )
@@ -132,8 +140,8 @@ def main():
         (run_root / 'params.json').write_text(
             json.dumps(vars(args), indent=4, sort_keys=True))
 
-        train_loader = make_loader(train_fold, train_transform)
-        valid_loader = make_loader(valid_fold, test_transform)
+        train_loader = make_train_loader(train_fold, train_transform)
+        valid_loader = make_valid_loader(valid_fold, test_transform)
         print(f'{len(train_loader.dataset):,} items in train, '
               f'{len(valid_loader.dataset):,} in valid')
 
@@ -155,7 +163,7 @@ def main():
             train(params=all_params, **train_kwargs)
 
     elif args.mode == 'validate':
-        valid_loader = make_loader(valid_fold, test_transform)
+        valid_loader = make_valid_loader(valid_fold, test_transform)
         load_model(model, run_root / 'model.pth')
         validation(model, criterion, tqdm.tqdm(valid_loader, desc='Validation'),
                    use_cuda=use_cuda)
@@ -212,9 +220,7 @@ def train(args, model: nn.Module, criterion, *, params,
                     inputs = inputs.to(device, dtype=torch.float)
                     targets = targets.view(-1, 1).to(device, dtype=torch.float)
                 outputs = model(inputs)
-                # loss = _reduce_loss(criterion(outputs, targets))
                 batch_size = inputs.size(0)
-                # (batch_size * loss).backward()
                 loss = criterion(outputs, targets)
                 loss.backward()
                 if (i + 1) % args.step == 0:
@@ -234,7 +240,7 @@ def train(args, model: nn.Module, criterion, *, params,
             write_event(log, step, **valid_metrics)
             valid_loss = valid_metrics['valid_loss']
             valid_qwk = valid_metrics['valid_qwk']
-            print(f'Epoch {epoch}, train_loss {mean_loss}, valid_loss {valid_loss}, valid_qwk {valid_qwk}')
+            print(f'Epoch {epoch}, valid_loss {valid_loss}, valid_qwk {valid_qwk}')
             valid_losses.append(valid_loss)
             if valid_loss < best_valid_loss:
                 best_valid_loss = valid_loss
@@ -278,7 +284,8 @@ def validation(
             outputs = model(inputs)
             loss = criterion(outputs, targets)
             all_losses.append(loss.item())
-            predictions = torch.sigmoid(outputs)
+            # predictions = torch.sigmoid(outputs)
+            predictions = outputs
             all_predictions.append(predictions.cpu().numpy())
     all_predictions = np.concatenate(all_predictions)
     all_targets = np.concatenate(all_targets)

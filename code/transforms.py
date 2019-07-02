@@ -6,7 +6,7 @@ from PIL import Image
 import torchvision.transforms.functional as F
 from torchvision.transforms import (
     ToTensor, Normalize, Compose, Resize, CenterCrop, RandomCrop,
-    RandomHorizontalFlip, RandomResizedCrop, RandomRotation)
+    RandomHorizontalFlip, RandomResizedCrop, RandomRotation, Resize)
 
 
 class RandomSizedCrop:
@@ -94,16 +94,12 @@ class RandomRotate(object):
 
 
 train_transform = Compose([
-    # RandomRotate((90, 90), expand=True),
-    RandomCrop(288),
-    RandomHorizontalFlip(),
+    Resize((256, 256)),
 ])
 
 
 test_transform = Compose([
-    # RandomRotate((90, 90), expand=True),
-    RandomCrop(288),
-    RandomHorizontalFlip(),
+    Resize((256, 256)),
 ])
 
 

@@ -25,7 +25,7 @@ if __name__ == "__main__":
         with open(file+".txt", "wb") as f:
             f.write(convert_file_to_b64_string(file+".py"))
     """
-    encode_files = ['main']
+    encode_files = ['main', 'transforms']
 
     for file in encode_files:
         with open(file + ".txt", "wb") as f:
