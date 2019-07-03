@@ -94,12 +94,12 @@ class RandomRotate(object):
 
 
 train_transform = Compose([
-    Resize((256, 256)),
+    RandomHorizontalFlip(),
 ])
 
 
 test_transform = Compose([
-    Resize((256, 256)),
+    RandomHorizontalFlip(),
 ])
 
 

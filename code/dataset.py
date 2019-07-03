@@ -1,4 +1,5 @@
 import os
+import numpy as np
 from pathlib import Path
 from typing import Callable, List
 
@@ -12,7 +13,8 @@ from .transforms import tensor_transform
 from .utils import ON_KAGGLE
 
 
-DATA_ROOT = Path('../input/aptos2019-blindness-detection' if ON_KAGGLE else './data')
+DATA_ROOT = Path('../input/aptos-train-dataset/aptos-train-images' if ON_KAGGLE else './data')
+IMG_SIZE = 256
 
 
 class TrainDataset(Dataset):
@@ -62,10 +64,34 @@ def load_transform_image(
 
 
 def load_image(item, root: Path) -> Image.Image:
-    image = cv2.imread(str(root / f'{item.id_code}.png'))
+    image = cv2.imread(str(root / f'{item.id_code}'))
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    image = crop_image(image)
+    image = cv2.resize(image, (IMG_SIZE, IMG_SIZE))
+    image = cv2.addWeighted(image, 4, cv2.GaussianBlur(image, (0, 0), IMG_SIZE / 10), -4, 128)
     return Image.fromarray(image)
 
 
-def get_ids(root: Path) -> List[str]:
-    return sorted({p.name.split('_')[0] for p in root.glob('*.png')})
+"""
+thanks to https://www.kaggle.com/ratthachat/aptos-simple-preprocessing-decoloring-cropping
+"""
+
+
+def crop_image1(img, tol=7):
+    mask = img > tol
+    return img[np.ix_(mask.any(1), mask.any(0))]
+
+
+def crop_image(img, tol=7):
+    if img.ndim == 2:
+        mask = img > tol
+        return img[np.ix_(mask.any(1), mask.any(0))]
+    elif img.ndim == 3:
+        h, w, _ = img.shape
+        img1 = cv2.resize(crop_image1(img[:, :, 0]), (w, h))
+        img2 = cv2.resize(crop_image1(img[:, :, 1]), (w, h))
+        img3 = cv2.resize(crop_image1(img[:, :, 2]), (w, h))
+        img[:, :, 0] = img1
+        img[:, :, 1] = img2
+        img[:, :, 2] = img3
+        return img

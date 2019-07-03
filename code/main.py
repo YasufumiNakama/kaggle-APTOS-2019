@@ -6,8 +6,10 @@ import shutil
 import warnings
 from typing import Dict
 
+import os
 import numpy as np
 import pandas as pd
+import random
 import scipy as sp
 from functools import partial
 from sklearn import metrics
@@ -20,11 +22,20 @@ from torch.optim import Adam
 import tqdm
 
 from . import models
-from .dataset import TrainDataset, TTADataset, get_ids, DATA_ROOT
+from .dataset import TrainDataset, TTADataset, DATA_ROOT
 from .transforms import train_transform, test_transform
 from .utils import (
     write_event, load_model, mean_df, ThreadingDataLoader as DataLoader,
     ON_KAGGLE)
+
+
+def seed_torch(seed=777):
+    random.seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
 
 
 def quadratic_weighted_kappa(y_hat, y):
@@ -78,6 +89,7 @@ class OptimizedRounder(object):
 
 
 def main():
+    seed_torch(seed=777)
     parser = argparse.ArgumentParser()
     arg = parser.add_argument
     arg('mode', choices=['train', 'validate', 'predict_valid', 'predict_test'])
@@ -100,8 +112,8 @@ def main():
     args = parser.parse_args()
 
     run_root = Path(args.run_root)
-    folds = pd.read_csv('folds.csv')
-    train_root = DATA_ROOT / 'train_images'
+    folds = pd.read_csv("../input/aptos-folds/folds.csv")
+    train_root = DATA_ROOT / 'aptos-train-images'
     train_fold = folds[folds['fold'] != args.fold].reset_index(drop=True)
     valid_fold = folds[folds['fold'] == args.fold].reset_index(drop=True)
     if args.limit:
