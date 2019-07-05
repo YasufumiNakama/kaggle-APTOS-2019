@@ -251,8 +251,9 @@ def train(args, model: nn.Module, criterion, *, params,
             valid_metrics = validation(model, criterion, valid_loader, use_cuda)
             write_event(log, step, **valid_metrics)
             valid_loss = valid_metrics['valid_loss']
-            valid_qwk = valid_metrics['valid_qwk']
-            print(f'Epoch {epoch}, valid_loss {valid_loss}, valid_qwk {valid_qwk}')
+            # valid_qwk = valid_metrics['valid_qwk']
+            # print(f'Epoch {epoch}, valid_loss {valid_loss}, valid_qwk {valid_qwk}')
+            print(f'Epoch {epoch}, valid_loss {valid_loss}')
             valid_losses.append(valid_loss)
             if valid_loss < best_valid_loss:
                 best_valid_loss = valid_loss
@@ -285,10 +286,11 @@ def validation(
         model: nn.Module, criterion, valid_loader, use_cuda,
         ) -> Dict[str, float]:
     model.eval()
-    all_losses, all_predictions, all_targets = [], [], []
+    # all_losses, all_predictions, all_targets = [], [], []
+    all_losses = []
     with torch.no_grad():
         for inputs, targets in valid_loader:
-            all_targets.append(targets.numpy().copy())
+            # all_targets.append(targets.numpy().copy())
             if use_cuda:
                 device = "cuda:0"
                 inputs = inputs.to(device, dtype=torch.float)
@@ -296,12 +298,12 @@ def validation(
             outputs = model(inputs)
             loss = criterion(outputs, targets)
             all_losses.append(loss.item())
-            # predictions = torch.sigmoid(outputs)
-            predictions = outputs
-            all_predictions.append(predictions.cpu().numpy())
-    all_predictions = np.concatenate(all_predictions)
-    all_targets = np.concatenate(all_targets)
+            # predictions = outputs
+            # all_predictions.append(predictions.cpu().numpy())
+    # all_predictions = np.concatenate(all_predictions)
+    # all_targets = np.concatenate(all_targets)
 
+    """
     optR = OptimizedRounder()
     optR.fit(all_predictions, all_targets)
     coefficients = optR.coefficients()
@@ -311,10 +313,11 @@ def validation(
         with warnings.catch_warnings():
             warnings.simplefilter('ignore', category=UndefinedMetricWarning)
             return quadratic_weighted_kappa(all_targets, y_pred)
+    """
 
     metrics = {}
     metrics['valid_loss'] = np.mean(all_losses)
-    metrics['valid_qwk'] = get_score(y_pred)
+    # metrics['valid_qwk'] = get_score(y_pred)
 
     return metrics
 
