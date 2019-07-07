@@ -66,11 +66,18 @@ def load_transform_image(
 def load_image(item, root: Path) -> Image.Image:
     image = cv2.imread(str(root / f'{item.id_code}'))
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    return Image.fromarray(image)
+
+
+"""
+def load_image(item, root: Path) -> Image.Image:
+    image = cv2.imread(str(root / f'{item.id_code}'))
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     image = crop_image(image)
     image = cv2.resize(image, (IMG_SIZE, IMG_SIZE))
     image = cv2.addWeighted(image, 4, cv2.GaussianBlur(image, (0, 0), IMG_SIZE / 10), -4, 128)
     return Image.fromarray(image)
-
+"""
 
 """
 thanks to https://www.kaggle.com/ratthachat/aptos-simple-preprocessing-decoloring-cropping
